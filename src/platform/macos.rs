@@ -21,7 +21,7 @@ pub fn foreground_job(child_pid: u32) -> Option<ForegroundJob> {
         let Some(info) = process_bsdinfo(pid) else {
             continue;
         };
-        if info.pbi_pgid as u32 != fg_pgid {
+        if info.pbi_pgid != fg_pgid {
             continue;
         }
 
@@ -189,14 +189,6 @@ fn kern_procargs2(pid: u32) -> Option<Vec<u8>> {
         buf.truncate(size);
         Some(buf)
     }
-}
-
-/// Fallback: read `pbi_comm` from `proc_pidinfo(PROC_PIDTBSDINFO)`.
-///
-/// This is the kernel-level short command name (like `node`, `zsh`).
-/// It does NOT reflect `process.title` changes.
-fn process_comm_name(pid: u32) -> Option<String> {
-    process_bsdinfo(pid).and_then(|info| comm_from_bsdinfo(&info))
 }
 
 pub fn write_clipboard(bytes: &[u8]) -> bool {

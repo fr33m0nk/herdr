@@ -178,6 +178,7 @@ fn open_subscription(socket_path: &Path, json: &str) -> JsonLineReader {
     reader
 }
 
+#[cfg(not(target_os = "macos"))]
 fn wait_for_event(
     reader: &mut JsonLineReader,
     expected: &str,
@@ -186,6 +187,7 @@ fn wait_for_event(
     wait_for_event_matching(reader, expected, timeout, |_| true)
 }
 
+#[cfg(not(target_os = "macos"))]
 fn wait_for_event_matching<F>(
     reader: &mut JsonLineReader,
     expected: &str,
