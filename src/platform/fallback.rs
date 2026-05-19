@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use super::{ForegroundJob, Signal};
+use super::{ClipboardImage, ForegroundJob, Signal};
 
 /// Unsupported platform stub.
 pub fn foreground_job(_child_pid: u32) -> Option<ForegroundJob> {
@@ -33,6 +33,11 @@ pub fn process_exists(_pid: u32) -> bool {
 /// Unsupported platform stub.
 pub fn write_clipboard(_bytes: &[u8]) -> bool {
     false
+}
+
+/// Unsupported platform stub.
+pub fn read_clipboard_image() -> Option<ClipboardImage> {
+    None
 }
 
 /// Unsupported platform stub.

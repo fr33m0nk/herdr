@@ -6,6 +6,12 @@
 - Added an integrations tab in settings and first-run onboarding so users can install recommended agent integrations from inside Herdr.
 - Added `terminal.default_shell` to choose the executable used for new interactive panes. When unset, Herdr still falls back to `$SHELL`, then `/bin/sh`. (#196)
 
+### Fixed
+- Remote clients now bridge local clipboard images into the remote pane by staging them as temporary image files and pasting the remote path, so Claude Code image paste works over `herdr --remote`. (#205)
+
+### Breaking Changes
+- The client/server protocol is now version 8. Stop and restart any running v0.5.12 server before attaching with this release.
+
 ## [0.5.12] - 2026-05-19
 
 ### Fixed

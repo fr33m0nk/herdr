@@ -14,7 +14,8 @@ use tokio::sync::mpsc;
 use tracing::{debug, warn};
 
 use crate::server::protocol::{
-    self, ClientMessage, RenderEncoding, ServerMessage, MAX_FRAME_SIZE, PROTOCOL_VERSION,
+    self, ClientMessage, RenderEncoding, ServerMessage, MAX_CLIPBOARD_IMAGE_PAYLOAD,
+    MAX_FRAME_SIZE, MAX_GRAPHICS_FRAME_SIZE, PROTOCOL_VERSION,
 };
 
 /// Minimum accepted attached client size.
@@ -58,6 +59,12 @@ pub(crate) enum ServerEvent {
     },
     /// A client sent an input message.
     ClientInput { client_id: u64, data: Vec<u8> },
+    /// A client sent local clipboard image bytes to paste into a remote pane.
+    ClientClipboardImage {
+        client_id: u64,
+        extension: String,
+        data: Vec<u8>,
+    },
     /// A client requested direct attach to one terminal.
     ClientAttachTerminal {
         client_id: u64,
@@ -305,7 +312,8 @@ fn client_read_loop(
     should_quit: &Arc<AtomicBool>,
 ) -> io::Result<()> {
     while !should_quit.load(Ordering::Acquire) {
-        let msg: ClientMessage = match protocol::read_message(&mut stream, MAX_FRAME_SIZE) {
+        let msg: ClientMessage = match protocol::read_message(&mut stream, MAX_GRAPHICS_FRAME_SIZE)
+        {
             Ok(msg) => msg,
             Err(protocol::FramingError::UnexpectedEof) => {
                 // Client disconnected.
@@ -339,9 +347,29 @@ fn client_read_loop(
                         size = data.len(),
                         "oversized input from client, closing"
                     );
-                    ServerEvent::ClientDisconnected { client_id }
+                    let _ = server_event_tx
+                        .blocking_send(ServerEvent::ClientDisconnected { client_id });
+                    break;
                 } else {
                     ServerEvent::ClientInput { client_id, data }
+                }
+            }
+            ClientMessage::ClipboardImage { extension, data } => {
+                if data.len() > MAX_CLIPBOARD_IMAGE_PAYLOAD {
+                    warn!(
+                        client_id,
+                        size = data.len(),
+                        "oversized clipboard image from client, closing"
+                    );
+                    let _ = server_event_tx
+                        .blocking_send(ServerEvent::ClientDisconnected { client_id });
+                    break;
+                } else {
+                    ServerEvent::ClientClipboardImage {
+                        client_id,
+                        extension,
+                        data,
+                    }
                 }
             }
             ClientMessage::Resize {

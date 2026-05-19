@@ -267,8 +267,8 @@ fn client_connects_and_receives_frame() {
     // Connect and handshake.
     let mut stream = UnixStream::connect(&client_socket).expect("should connect to client socket");
     let (version, error) =
-        client_handshake(&mut stream, 7, 80, 24).expect("handshake should succeed");
-    assert_eq!(version, 7, "server should report protocol version 7");
+        client_handshake(&mut stream, 8, 80, 24).expect("handshake should succeed");
+    assert_eq!(version, 8, "server should report protocol version 8");
     assert!(
         error.is_none(),
         "handshake should not have error: {:?}",
@@ -335,8 +335,8 @@ fn client_sees_headless_startup_config_diagnostic() {
 
     let mut stream = UnixStream::connect(&client_socket).expect("should connect to client socket");
     let (version, error) =
-        client_handshake(&mut stream, 7, 80, 24).expect("handshake should succeed");
-    assert_eq!(version, 7);
+        client_handshake(&mut stream, 8, 80, 24).expect("handshake should succeed");
+    assert_eq!(version, 8);
     assert!(error.is_none(), "{:?}", error);
 
     stream
@@ -384,8 +384,8 @@ fn client_input_forwarded_to_pane() {
     // Connect and handshake.
     let mut stream = UnixStream::connect(&client_socket).expect("should connect to client socket");
     let (version, error) =
-        client_handshake(&mut stream, 7, 80, 24).expect("handshake should succeed");
-    assert_eq!(version, 7);
+        client_handshake(&mut stream, 8, 80, 24).expect("handshake should succeed");
+    assert_eq!(version, 8);
     assert!(error.is_none(), "{:?}", error);
 
     // Send an Input message containing "echo hello\n".
@@ -438,8 +438,8 @@ fn client_resize_sends_message() {
     // Connect and handshake.
     let mut stream = UnixStream::connect(&client_socket).expect("should connect to client socket");
     let (version, error) =
-        client_handshake(&mut stream, 7, 80, 24).expect("handshake should succeed");
-    assert_eq!(version, 7);
+        client_handshake(&mut stream, 8, 80, 24).expect("handshake should succeed");
+    assert_eq!(version, 8);
     assert!(error.is_none(), "{:?}", error);
 
     // Drain the initial frame(s).
@@ -448,9 +448,9 @@ fn client_resize_sends_message() {
         .unwrap();
     while read_server_message(&mut stream).is_ok() {}
 
-    // Send a Resize message: ClientMessage::Resize is variant 2.
+    // Send a Resize message: ClientMessage::Resize is variant 3.
     let resize_payload = {
-        let mut buf = encode_varint_u32(2); // variant 2 = Resize
+        let mut buf = encode_varint_u32(3); // variant 3 = Resize
         buf.extend_from_slice(&encode_varint_u16(120)); // cols
         buf.extend_from_slice(&encode_varint_u16(40)); // rows
         buf.extend_from_slice(&encode_varint_u32(8)); // cell_width_px
@@ -497,8 +497,8 @@ fn server_shutdown_sends_message_to_client() {
     // Connect and handshake.
     let mut stream = UnixStream::connect(&client_socket).expect("should connect to client socket");
     let (version, error) =
-        client_handshake(&mut stream, 7, 80, 24).expect("handshake should succeed");
-    assert_eq!(version, 7);
+        client_handshake(&mut stream, 8, 80, 24).expect("handshake should succeed");
+    assert_eq!(version, 8);
     assert!(error.is_none(), "{:?}", error);
 
     // Send SIGINT so the server takes the graceful shutdown path and
@@ -725,8 +725,8 @@ fn client_receives_frame_after_pane_output() {
     // Connect and handshake.
     let mut stream = UnixStream::connect(&client_socket).expect("should connect to client socket");
     let (version, error) =
-        client_handshake(&mut stream, 7, 80, 24).expect("handshake should succeed");
-    assert_eq!(version, 7);
+        client_handshake(&mut stream, 8, 80, 24).expect("handshake should succeed");
+    assert_eq!(version, 8);
     assert!(error.is_none(), "{:?}", error);
 
     read_next_frame_payload(&mut stream, Duration::from_secs(10))
@@ -772,8 +772,8 @@ fn navigate_mode_keybind_dispatch_in_server() {
     // Connect and handshake.
     let mut stream = UnixStream::connect(&client_socket).expect("should connect to client socket");
     let (version, error) =
-        client_handshake(&mut stream, 7, 80, 24).expect("handshake should succeed");
-    assert_eq!(version, 7);
+        client_handshake(&mut stream, 8, 80, 24).expect("handshake should succeed");
+    assert_eq!(version, 8);
     assert!(error.is_none(), "{:?}", error);
 
     // Drain initial frames.
@@ -890,8 +890,8 @@ fn graceful_shutdown_sends_server_shutdown_to_client() {
     // Connect and handshake.
     let mut stream = UnixStream::connect(&client_socket).expect("should connect to client socket");
     let (version, error) =
-        client_handshake(&mut stream, 7, 80, 24).expect("handshake should succeed");
-    assert_eq!(version, 7);
+        client_handshake(&mut stream, 8, 80, 24).expect("handshake should succeed");
+    assert_eq!(version, 8);
     assert!(error.is_none(), "{:?}", error);
 
     // Drain initial frame(s).
@@ -988,8 +988,8 @@ fn client_receives_notify_on_agent_state_change() {
     // Connect as a client and perform handshake.
     let mut stream = UnixStream::connect(&client_socket).expect("should connect");
     let (version, error) =
-        client_handshake(&mut stream, 7, 80, 24).expect("handshake should succeed");
-    assert_eq!(version, 7);
+        client_handshake(&mut stream, 8, 80, 24).expect("handshake should succeed");
+    assert_eq!(version, 8);
     assert!(error.is_none(), "{:?}", error);
 
     // Drain initial frame(s).

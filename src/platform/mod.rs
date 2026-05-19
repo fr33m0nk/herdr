@@ -30,6 +30,12 @@ pub struct ClipboardCommand {
     pub args: &'static [&'static str],
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClipboardImage {
+    pub bytes: Vec<u8>,
+    pub extension: &'static str,
+}
+
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "linux")]

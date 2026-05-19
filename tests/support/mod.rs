@@ -276,7 +276,7 @@ pub fn send_input(stream: &mut UnixStream, data: &[u8]) -> Result<(), String> {
 }
 
 pub fn send_detach(stream: &mut UnixStream) -> Result<(), String> {
-    let detach_payload = encode_varint_u32(3);
+    let detach_payload = encode_varint_u32(4);
     let framed = frame_message(&detach_payload);
     stream
         .write_all(&framed)

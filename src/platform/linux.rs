@@ -4,7 +4,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-use super::{ClipboardCommand, ForegroundJob, ForegroundProcess, Signal};
+use super::{ClipboardCommand, ClipboardImage, ForegroundJob, ForegroundProcess, Signal};
 
 /// Collect the foreground terminal job for a given child PID.
 pub fn foreground_job(child_pid: u32) -> Option<ForegroundJob> {
@@ -155,6 +155,34 @@ pub fn write_clipboard(bytes: &[u8]) -> bool {
     false
 }
 
+pub fn read_clipboard_image() -> Option<ClipboardImage> {
+    for (mime, extension) in [
+        ("image/png", "png"),
+        ("image/jpeg", "jpg"),
+        ("image/jpg", "jpg"),
+        ("image/gif", "gif"),
+        ("image/webp", "webp"),
+        ("image/bmp", "bmp"),
+    ] {
+        if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+            if let Some(bytes) = read_clipboard_image_with_command("wl-paste", &["--type", mime]) {
+                return Some(ClipboardImage { bytes, extension });
+            }
+        }
+
+        if std::env::var_os("DISPLAY").is_some() {
+            if let Some(bytes) = read_clipboard_image_with_command(
+                "xclip",
+                &["-selection", "clipboard", "-t", mime, "-o"],
+            ) {
+                return Some(ClipboardImage { bytes, extension });
+            }
+        }
+    }
+
+    None
+}
+
 /// Show a native desktop notification through libnotify's command-line helper.
 pub fn show_desktop_notification(title: &str, body: Option<&str>) -> std::io::Result<bool> {
     show_desktop_notification_with_command(title, body, |program| Command::new(program))
@@ -190,6 +218,21 @@ fn run_notification_command(mut command: Command) -> std::io::Result<bool> {
     };
 
     Ok(status.success())
+}
+
+fn read_clipboard_image_with_command(program: &str, args: &[&str]) -> Option<Vec<u8>> {
+    let output = Command::new(program)
+        .args(args)
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+
+    if output.status.success() && !output.stdout.is_empty() {
+        Some(output.stdout)
+    } else {
+        None
+    }
 }
 
 fn clipboard_commands() -> Vec<ClipboardCommand> {

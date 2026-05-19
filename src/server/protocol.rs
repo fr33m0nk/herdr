@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 // ---------------------------------------------------------------------------
 
 /// Current protocol version. Bumped when wire format changes incompatibly.
-pub const PROTOCOL_VERSION: u32 = 7;
+pub const PROTOCOL_VERSION: u32 = 8;
 
 /// Maximum allowed frame payload size (2 MB). Frames larger than this are
 /// rejected to prevent denial-of-service via oversized length prefixes.
@@ -23,6 +23,9 @@ pub const MAX_FRAME_SIZE: usize = 2 * 1024 * 1024;
 /// Normal traffic keeps `MAX_FRAME_SIZE`; this larger cap is only for explicit
 /// image payloads that are naturally much larger after base64 encoding.
 pub const MAX_GRAPHICS_FRAME_SIZE: usize = 32 * 1024 * 1024;
+
+/// Maximum clipboard image payload size for remote paste bridging.
+pub const MAX_CLIPBOARD_IMAGE_PAYLOAD: usize = 16 * 1024 * 1024;
 
 /// Length of the u32 little-endian length prefix in bytes.
 const LENGTH_PREFIX_BYTES: usize = 4;
@@ -62,6 +65,14 @@ pub enum ClientMessage {
     /// Raw input bytes read from the client's stdin.
     Input {
         /// Raw terminal input (possibly multi-byte escape sequences).
+        data: Vec<u8>,
+    },
+
+    /// Image bytes read from the client's local clipboard for remote paste bridging.
+    ClipboardImage {
+        /// Image file extension without a leading dot.
+        extension: String,
+        /// Raw image bytes.
         data: Vec<u8>,
     },
 
@@ -616,6 +627,18 @@ mod tests {
     }
 
     #[test]
+    fn client_clipboard_image_roundtrip() {
+        let msg = ClientMessage::ClipboardImage {
+            extension: "png".to_owned(),
+            data: vec![0x89, b'P', b'N', b'G'],
+        };
+        let encoded = bincode::serde::encode_to_vec(&msg, bincode::config::standard()).unwrap();
+        let (decoded, _): (ClientMessage, _) =
+            bincode::serde::decode_from_slice(&encoded, bincode::config::standard()).unwrap();
+        assert_eq!(msg, decoded);
+    }
+
+    #[test]
     fn client_input_large_multilingual_payload_roundtrip() {
         let text = "你好，今天我们测试一段比较长的语音输入。こんにちは。안녕하세요.🙂".repeat(1024);
         assert!(text.len() > 64 * 1024);
@@ -933,7 +956,7 @@ mod tests {
         let mut expected = Vec::new();
 
         for i in 0..150u32 {
-            let msg = match i % 4 {
+            let msg = match i % 5 {
                 0 => ClientMessage::Hello {
                     version: PROTOCOL_VERSION,
                     cols: (80 + (i % 40) as u16),
@@ -945,13 +968,17 @@ mod tests {
                 1 => ClientMessage::Input {
                     data: vec![(i % 256) as u8; (i as usize % 50) + 1],
                 },
-                2 => ClientMessage::Resize {
+                2 => ClientMessage::ClipboardImage {
+                    extension: "png".to_owned(),
+                    data: vec![0x89, b'P', b'N', b'G', (i % 256) as u8],
+                },
+                3 => ClientMessage::Resize {
                     cols: (100 + (i % 30) as u16),
                     rows: (30 + (i % 10) as u16),
                     cell_width_px: 8,
                     cell_height_px: 16,
                 },
-                3 => ClientMessage::Detach,
+                4 => ClientMessage::Detach,
                 _ => unreachable!(),
             };
             write_message(&mut buf, &msg).unwrap();
@@ -1407,6 +1434,10 @@ mod tests {
             },
             ClientMessage::Input {
                 data: b"hello world".to_vec(),
+            },
+            ClientMessage::ClipboardImage {
+                extension: "png".to_owned(),
+                data: vec![0x89, b'P', b'N', b'G'],
             },
             ClientMessage::Resize {
                 cols: 100,
