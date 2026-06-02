@@ -190,8 +190,9 @@ jobs:
           cp target/${{ matrix.target }}/release/herdr ${{ matrix.name }}
           if [ "${{ runner.os }}" = "Linux" ]; then
             file ${{ matrix.name }} > BUILD_INFO.txt
-            ldd ${{ matrix.name }} 2>&1 | tee -a BUILD_INFO.txt
-            grep -q "statically linked" BUILD_INFO.txt
+            ldd ${{ matrix.name }} > LDD_INFO.txt 2>&1 || true
+            cat LDD_INFO.txt >> BUILD_INFO.txt
+            grep -Eq "statically linked|not a dynamic executable" LDD_INFO.txt
             if nm -u ${{ matrix.name }} 2>/dev/null | grep -E '(__cxa|GLIBCXX|CXXABI|_ZSt)'; then
               echo "error: Linux artifact has unresolved C++ runtime symbols" >&2
               exit 1
