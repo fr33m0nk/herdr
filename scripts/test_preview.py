@@ -47,6 +47,10 @@ class PreviewNotesTests(unittest.TestCase):
                 data["assets"]["linux-x86_64"]["sha256"],
                 "deadbeef",
             )
+            self.assertEqual(
+                data["assets"]["windows-x86_64"]["url"],
+                "https://github.com/ogulcancelik/herdr/releases/download/preview-2026-06-02-abcdef123456/herdr-windows-x86_64.exe",
+            )
             self.assertIn("2026-06-02-abcdef123456", data["builds"])
 
     def test_hidden_subjects_include_preview_manifest_commits(self):

@@ -23,11 +23,18 @@ curl -fsSL https://herdr.dev/install.sh | sh
 herdr
 ```
 
+On Windows beta:
+
+```powershell
+$env:HERDR_CHANNEL="preview"; powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
+herdr
+```
+
 ## Start here
 
 <CardGrid>
   <Card title="Install">
-    Install Herdr on Linux or macOS, update it later, and verify the binary.
+    Install Herdr on Linux, macOS, or Windows beta, update it later, and verify the binary.
 
     [Install Herdr →](/docs/install/)
   </Card>

@@ -609,6 +609,42 @@ fn install_downloaded_update(mut update: DownloadedUpdate) -> Result<(), String>
     Ok(())
 }
 
+#[cfg(windows)]
+fn install_windows_update_with_installer(channel: UpdateChannel) -> Result<(), String> {
+    let status = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            "irm https://herdr.dev/install.ps1 | iex",
+        ])
+        .env("HERDR_CHANNEL", channel.as_str())
+        .status()
+        .map_err(|err| format!("failed to run Windows installer: {err}"))?;
+
+    if !status.success() {
+        return Err(format!("Windows installer failed with status {status}"));
+    }
+
+    Ok(())
+}
+
+#[cfg(windows)]
+fn windows_installed_herdr_exe_path() -> Result<PathBuf, String> {
+    if let Some(install_dir) = env::var_os("HERDR_INSTALL_DIR").filter(|value| !value.is_empty()) {
+        return Ok(PathBuf::from(install_dir).join("herdr.exe"));
+    }
+
+    let local_app_data = env::var_os("LOCALAPPDATA")
+        .ok_or("LOCALAPPDATA is not set; cannot locate Herdr install")?;
+    Ok(PathBuf::from(local_app_data)
+        .join("Programs")
+        .join("Herdr")
+        .join("bin")
+        .join("herdr.exe"))
+}
+
 // ---------------------------------------------------------------------------
 // Upgrade flow helpers
 // ---------------------------------------------------------------------------
@@ -1901,32 +1937,73 @@ pub fn self_update(options: SelfUpdateOptions) -> Result<Version, String> {
     if let Some(commit) = &release.commit {
         tracing::info!(commit = %commit, build_id = ?release.build_id, "selected preview update build");
     }
-    eprintln!("downloading {}...", release.label());
     if let Err(e) = crate::release_notes::save_pending(release.label(), &release.notes_body) {
         tracing::warn!("failed to save pending release notes: {e}");
     }
-    let downloaded_update = download_update(&release)?;
-    let updated_exe = downloaded_update.current_exe.clone();
-    eprintln!("downloaded {}", release.label());
-    if !options.live_handoff
-        && !prompt_to_complete_plain_update(&server_update_decisions, &release)?
-    {
-        eprintln!("Herdr was not updated.");
-        eprintln!("Stop running Herdr sessions when ready, then run `herdr update` again.");
-        return Ok(current);
-    }
-    install_downloaded_update(downloaded_update)?;
-    eprintln!("installed {}", release.label());
-    let server_update_decisions = if options.live_handoff {
-        server_update_decisions
-    } else {
-        mark_plain_update_stop_decisions(server_update_decisions)
-    };
-    let server_update_outcomes =
-        apply_running_session_update_decisions(&release, &updated_exe, server_update_decisions)?;
-    print_outdated_integration_notice_with_updated_binary(&updated_exe);
 
-    print_running_session_update_outcomes(&server_update_outcomes, &release);
+    #[cfg(windows)]
+    {
+        if !options.live_handoff
+            && !prompt_to_complete_plain_update(&server_update_decisions, &release)?
+        {
+            eprintln!("Herdr was not updated.");
+            eprintln!("Stop running Herdr sessions when ready, then run `herdr update` again.");
+            return Ok(current);
+        }
+
+        eprintln!(
+            "installing {} with the Windows installer...",
+            release.label()
+        );
+        install_windows_update_with_installer(channel)?;
+        let updated_exe = windows_installed_herdr_exe_path()?;
+        eprintln!("installed {}", release.label());
+        let server_update_decisions = if options.live_handoff {
+            server_update_decisions
+        } else {
+            mark_plain_update_stop_decisions(server_update_decisions)
+        };
+        let server_update_outcomes = apply_running_session_update_decisions(
+            &release,
+            &updated_exe,
+            server_update_decisions,
+        )?;
+        print_outdated_integration_notice_with_updated_binary(&updated_exe);
+
+        print_running_session_update_outcomes(&server_update_outcomes, &release);
+
+        return Ok(release.version);
+    }
+
+    #[cfg(not(windows))]
+    {
+        eprintln!("downloading {}...", release.label());
+        let downloaded_update = download_update(&release)?;
+        let updated_exe = downloaded_update.current_exe.clone();
+        eprintln!("downloaded {}", release.label());
+        if !options.live_handoff
+            && !prompt_to_complete_plain_update(&server_update_decisions, &release)?
+        {
+            eprintln!("Herdr was not updated.");
+            eprintln!("Stop running Herdr sessions when ready, then run `herdr update` again.");
+            return Ok(current);
+        }
+        install_downloaded_update(downloaded_update)?;
+        eprintln!("installed {}", release.label());
+        let server_update_decisions = if options.live_handoff {
+            server_update_decisions
+        } else {
+            mark_plain_update_stop_decisions(server_update_decisions)
+        };
+        let server_update_outcomes = apply_running_session_update_decisions(
+            &release,
+            &updated_exe,
+            server_update_decisions,
+        )?;
+        print_outdated_integration_notice_with_updated_binary(&updated_exe);
+
+        print_running_session_update_outcomes(&server_update_outcomes, &release);
+    }
 
     Ok(release.version)
 }
@@ -2077,6 +2154,8 @@ fn platform_target() -> (&'static str, &'static str) {
         "linux"
     } else if cfg!(target_os = "macos") {
         "macos"
+    } else if cfg!(target_os = "windows") {
+        "windows"
     } else {
         "unknown"
     };

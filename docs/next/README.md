@@ -25,6 +25,12 @@ workspaces, tabs, panes. mouse-native: click, drag, split. every agent at a glan
 curl -fsSL https://herdr.dev/install.sh | sh
 ```
 
+on windows beta:
+
+```powershell
+$env:HERDR_CHANNEL="preview"; powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
+```
+
 or install with homebrew:
 
 ```bash
@@ -37,7 +43,7 @@ or install with mise:
 mise use -g herdr
 ```
 
-or download the binary from [releases](https://github.com/ogulcancelik/herdr/releases). requires linux or macos.
+or download the binary from [releases](https://github.com/ogulcancelik/herdr/releases). native windows support is beta.
 
 ## quick start
 

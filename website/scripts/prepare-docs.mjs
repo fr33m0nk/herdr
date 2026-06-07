@@ -25,6 +25,7 @@ async function preparePublicAssets() {
 
   for (const file of [
     'install.sh',
+    'install.ps1',
     'latest.json',
     'preview.json',
     'robots.txt',

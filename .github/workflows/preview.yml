@@ -129,6 +129,9 @@ jobs:
           - target: aarch64-apple-darwin
             os: macos-latest
             name: herdr-macos-aarch64
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            name: herdr-windows-x86_64.exe
     runs-on: ${{ matrix.os }}
     env:
       LIBGHOSTTY_VT_OPTIMIZE: ReleaseFast
@@ -178,12 +181,22 @@ jobs:
           key: preview-${{ matrix.target }}
 
       - name: Remove Zig caches
+        if: runner.os != 'Windows'
         run: rm -rf .zig-cache vendor/libghostty-vt/.zig-cache vendor/libghostty-vt/zig-out
+
+      - name: Remove Zig caches
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force .zig-cache -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force vendor/libghostty-vt/.zig-cache -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force vendor/libghostty-vt/zig-out -ErrorAction SilentlyContinue
 
       - name: Build
         run: cargo build --release --locked --target ${{ matrix.target }}
 
       - name: Package artifact
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           set -euo pipefail
@@ -211,6 +224,18 @@ jobs:
             echo "target=${{ matrix.target }}"
             echo "channel=preview"
           } >> BUILD_INFO.txt
+
+      - name: Package artifact
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item target\${{ matrix.target }}\release\herdr.exe ${{ matrix.name }}
+          $hash = (Get-FileHash -Algorithm SHA256 ${{ matrix.name }}).Hash.ToLowerInvariant()
+          "$hash  ${{ matrix.name }}" | Out-File -Encoding ascii ${{ matrix.name }}.sha256
+          "commit=${{ needs.preflight.outputs.commit }}" | Out-File -Encoding utf8 BUILD_INFO.txt
+          "build_id=${{ needs.preflight.outputs.build_id }}" | Out-File -Encoding utf8 -Append BUILD_INFO.txt
+          "target=${{ matrix.target }}" | Out-File -Encoding utf8 -Append BUILD_INFO.txt
+          "channel=preview" | Out-File -Encoding utf8 -Append BUILD_INFO.txt
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -253,7 +278,7 @@ jobs:
           result = {}
           for path in pathlib.Path('artifacts').glob('herdr-*/*.sha256'):
               digest, name = path.read_text().split()[:2]
-              target = name.removeprefix('herdr-')
+              target = name.removeprefix('herdr-').removesuffix('.exe')
               result[target] = digest
           pathlib.Path('preview-sha256.json').write_text(json.dumps(result, indent=2) + '\n')
           PY
@@ -273,6 +298,7 @@ jobs:
             artifacts/herdr-linux-aarch64/herdr-linux-aarch64
             artifacts/herdr-macos-x86_64/herdr-macos-x86_64
             artifacts/herdr-macos-aarch64/herdr-macos-aarch64
+            artifacts/herdr-windows-x86_64.exe/herdr-windows-x86_64.exe
 
       - name: Update preview manifest
         run: |

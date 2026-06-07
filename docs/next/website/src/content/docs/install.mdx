@@ -7,13 +7,19 @@ Herdr ships as a single binary for Linux and macOS. Native Windows support is be
 
 ## Install
 
-Run the installer:
+On Linux or macOS, run:
 
 ```bash
 curl -fsSL https://herdr.dev/install.sh | sh
 ```
 
-The installer downloads the right release binary for your platform and places it on your PATH.
+On Windows beta, install the preview channel:
+
+```powershell
+$env:HERDR_CHANNEL="preview"; powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
+```
+
+The installer downloads the right release binary for your platform and places it on your PATH. The Windows installer uses versioned install folders and updates a `current` junction, so updates do not need to overwrite a running `herdr.exe`.
 
 ## Install with Homebrew
 
@@ -122,7 +128,7 @@ Choose the asset that matches your system:
 | macOS Apple silicon | `herdr-macos-aarch64` |
 | Windows x86_64 beta | `herdr-windows-x86_64.exe` |
 
-Make it executable and move it somewhere on your PATH.
+On Linux or macOS, make it executable and move it somewhere on your PATH.
 
 ```bash
 chmod +x herdr-linux-x86_64

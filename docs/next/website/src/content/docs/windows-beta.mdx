@@ -5,6 +5,16 @@ description: Native Windows support status, supported workflows, and known limit
 
 Native Windows support is beta. It runs as the same Herdr version as Linux and macOS, but some Unix features are intentionally unavailable on Windows.
 
+Install native Windows beta builds with PowerShell:
+
+```powershell
+$env:HERDR_CHANNEL="preview"; powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
+```
+
+Windows beta builds ship through the preview channel first. The Windows installer stores releases under `%USERPROFILE%\.herdr\packages\standalone\releases`, points `%LOCALAPPDATA%\Programs\Herdr\bin` at the current release, and keeps a small number of older releases so running processes do not block updates.
+
+For internal beta testing, `HERDR_MANIFEST_URL` can point the installer at a custom manifest instead of Herdr's stable or preview manifest.
+
 ## Supported in beta
 
 | Capability | Status |

@@ -332,9 +332,6 @@ pub enum ClientMessage {
         data: Vec<u8>,
     },
 
-    /// Structured input events from platform clients that do not expose Unix-style raw bytes.
-    InputEvents { events: Vec<ClientInputEvent> },
-
     /// Image bytes read from the client's local clipboard for remote paste bridging.
     ClipboardImage {
         /// Image file extension without a leading dot.
@@ -381,6 +378,9 @@ pub enum ClientMessage {
         /// Crossterm-compatible modifier bits for forwarded mouse wheel events.
         modifiers: u8,
     },
+
+    /// Structured input events from platform clients that do not expose Unix-style raw bytes.
+    InputEvents { events: Vec<ClientInputEvent> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -926,6 +926,67 @@ mod tests {
         let (decoded, _): (ClientMessage, _) =
             bincode::serde::decode_from_slice(&encoded, bincode::config::standard()).unwrap();
         assert_eq!(msg, decoded);
+    }
+
+    #[test]
+    fn client_message_wire_tags_preserve_protocol_13_order() {
+        fn tag(msg: &ClientMessage) -> u8 {
+            *bincode::serde::encode_to_vec(msg, bincode::config::standard())
+                .unwrap()
+                .first()
+                .expect("encoded client message should include enum tag")
+        }
+
+        assert_eq!(
+            tag(&ClientMessage::Hello {
+                version: PROTOCOL_VERSION,
+                cols: 80,
+                rows: 24,
+                cell_width_px: 8,
+                cell_height_px: 16,
+                requested_encoding: RenderEncoding::SemanticFrame,
+                keybindings: ClientKeybindings::Server,
+                launch_mode: ClientLaunchMode::App,
+            }),
+            0
+        );
+        assert_eq!(tag(&ClientMessage::Input { data: Vec::new() }), 1);
+        assert_eq!(
+            tag(&ClientMessage::ClipboardImage {
+                extension: "png".to_owned(),
+                data: Vec::new(),
+            }),
+            2
+        );
+        assert_eq!(
+            tag(&ClientMessage::Resize {
+                cols: 80,
+                rows: 24,
+                cell_width_px: 8,
+                cell_height_px: 16,
+            }),
+            3
+        );
+        assert_eq!(tag(&ClientMessage::Detach), 4);
+        assert_eq!(
+            tag(&ClientMessage::AttachTerminal {
+                terminal_id: "term".to_owned(),
+                takeover: false,
+            }),
+            5
+        );
+        assert_eq!(
+            tag(&ClientMessage::AttachScroll {
+                source: AttachScrollSource::Wheel,
+                direction: AttachScrollDirection::Up,
+                lines: 1,
+                column: None,
+                row: None,
+                modifiers: 0,
+            }),
+            6
+        );
+        assert_eq!(tag(&ClientMessage::InputEvents { events: Vec::new() }), 7);
     }
 
     #[test]
