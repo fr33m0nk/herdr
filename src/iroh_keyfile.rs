@@ -122,7 +122,10 @@ pub fn migrate_raw_key(
         ));
     }
 
-    eprintln!("Found a legacy unencrypted identity key at {}", key_path.display());
+    eprintln!(
+        "Found a legacy unencrypted identity key at {}",
+        key_path.display()
+    );
     eprintln!("It will be migrated to an encrypted format. Choose a passphrase.");
     eprintln!();
 
@@ -147,13 +150,8 @@ fn derive_key(passphrase: &str, salt: &[u8]) -> [u8; 32] {
     Argon2::new(
         argon2::Algorithm::Argon2id,
         argon2::Version::V0x13,
-        argon2::Params::new(
-            KDF_MEMORY_KIB,
-            KDF_ITERATIONS,
-            KDF_PARALLELISM,
-            Some(32),
-        )
-        .expect("valid argon2 params"),
+        argon2::Params::new(KDF_MEMORY_KIB, KDF_ITERATIONS, KDF_PARALLELISM, Some(32))
+            .expect("valid argon2 params"),
     )
     .hash_password_into(passphrase.as_bytes(), salt, &mut key)
     .expect("argon2 hash");
@@ -197,7 +195,11 @@ fn read_encrypted_key(path: &Path, passphrase: &str) -> Result<[u8; 32], Keyfile
     Ok(secret)
 }
 
-fn write_encrypted_key(path: &Path, secret: &[u8; 32], passphrase: &str) -> Result<(), KeyfileError> {
+fn write_encrypted_key(
+    path: &Path,
+    secret: &[u8; 32],
+    passphrase: &str,
+) -> Result<(), KeyfileError> {
     let salt = rand::random::<[u8; KDF_SALT_LEN]>();
     let key_bytes = derive_key(passphrase, &salt);
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key_bytes));
@@ -273,8 +275,7 @@ fn prompt_new_passphrase_interactive(key_path: &Path) -> Result<SecretString, Ke
     eprintln!("This passphrase encrypts the key at rest. Choose a strong one.");
     eprintln!();
 
-    let pass = rpassword::prompt_password("New passphrase: ")
-        .map_err(|e| KeyfileError::Io(e))?;
+    let pass = rpassword::prompt_password("New passphrase: ").map_err(|e| KeyfileError::Io(e))?;
 
     if pass.len() < MIN_PASSPHRASE_LEN {
         return Err(KeyfileError::Other(format!(
@@ -282,8 +283,8 @@ fn prompt_new_passphrase_interactive(key_path: &Path) -> Result<SecretString, Ke
         )));
     }
 
-    let confirm = rpassword::prompt_password("Confirm passphrase: ")
-        .map_err(|e| KeyfileError::Io(e))?;
+    let confirm =
+        rpassword::prompt_password("Confirm passphrase: ").map_err(|e| KeyfileError::Io(e))?;
 
     if pass != confirm {
         return Err(KeyfileError::Other("passphrases do not match".into()));

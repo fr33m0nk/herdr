@@ -42,10 +42,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use iroh::{
-    Endpoint, EndpointId, RelayMap, RelayUrl,
-    endpoint::{Connection, RecvStream, SendStream, presets},
+    endpoint::{presets, Connection, RecvStream, SendStream},
     protocol::{ProtocolHandler, Router},
-    RelayConfig, RelayMode, SecretKey,
+    Endpoint, EndpointId, RelayConfig, RelayMap, RelayMode, RelayUrl, SecretKey,
 };
 use tokio::net::UnixStream;
 use tracing::{debug, info, warn};
@@ -137,7 +136,10 @@ pub async fn run_connect(config: ConnectConfig) -> io::Result<()> {
                 return Ok(());
             }
             Err(e) => {
-                warn!("iroh bridge connection lost: {e} — reconnecting in {}s", reconnect_delay.as_secs());
+                warn!(
+                    "iroh bridge connection lost: {e} — reconnecting in {}s",
+                    reconnect_delay.as_secs()
+                );
                 tokio::time::sleep(reconnect_delay).await;
             }
         }
@@ -191,9 +193,7 @@ pub async fn run_connect_once_with_stream(
     let conn = endpoint
         .connect(config.remote_endpoint_id, ALPN)
         .await
-        .map_err(|e| {
-            io::Error::other(format!("failed to connect to remote endpoint: {e}"))
-        })?;
+        .map_err(|e| io::Error::other(format!("failed to connect to remote endpoint: {e}")))?;
 
     let remote_id = conn.remote_id();
     info!("connected to remote endpoint {remote_id}");
@@ -271,9 +271,10 @@ pub async fn bind_endpoint(
         }
     }
 
-    let endpoint = builder.bind().await.map_err(|e| {
-        io::Error::other(format!("failed to bind iroh endpoint: {e}"))
-    })?;
+    let endpoint = builder
+        .bind()
+        .await
+        .map_err(|e| io::Error::other(format!("failed to bind iroh endpoint: {e}")))?;
 
     let endpoint_id = endpoint.id();
     Ok((endpoint, endpoint_id))
@@ -293,10 +294,7 @@ struct BridgeHandler {
 }
 
 impl ProtocolHandler for BridgeHandler {
-    async fn accept(
-        &self,
-        connection: Connection,
-    ) -> Result<(), iroh::protocol::AcceptError> {
+    async fn accept(&self, connection: Connection) -> Result<(), iroh::protocol::AcceptError> {
         let remote_id = connection.remote_id();
 
         info!("accepted iroh connection from {remote_id}");
@@ -420,7 +418,8 @@ pub fn load_or_create_identity_key() -> io::Result<[u8; 32]> {
                 #[cfg(unix)]
                 {
                     use std::os::unix::fs::PermissionsExt;
-                    let _ = std::fs::set_permissions(&pub_path, std::fs::Permissions::from_mode(0o644));
+                    let _ =
+                        std::fs::set_permissions(&pub_path, std::fs::Permissions::from_mode(0o644));
                 }
             }
 
@@ -468,24 +467,23 @@ pub fn load_identity_public_key() -> io::Result<Option<EndpointId>> {
     }
 
     let hex_str = std::fs::read_to_string(&pub_path)?;
-    let bytes = hex_decode(hex_str.trim())
-        .map_err(|e| io::Error::other(format!("invalid pubkey: {e}")))?;
+    let bytes =
+        hex_decode(hex_str.trim()).map_err(|e| io::Error::other(format!("invalid pubkey: {e}")))?;
     if bytes.len() != 32 {
         return Err(io::Error::other("invalid pubkey length"));
     }
 
     let mut arr = [0u8; 32];
     arr.copy_from_slice(&bytes);
-    let id = EndpointId::from_bytes(&arr).map_err(|e| {
-        io::Error::other(format!("invalid public key bytes: {e}"))
-    })?;
+    let id = EndpointId::from_bytes(&arr)
+        .map_err(|e| io::Error::other(format!("invalid public key bytes: {e}")))?;
     Ok(Some(id))
 }
 
 /// Returns `~/.config/herdr/iroh/`.
 pub fn identity_key_dir() -> io::Result<PathBuf> {
-    let config_dir = home_config_dir()
-        .ok_or_else(|| io::Error::other("cannot determine config directory"))?;
+    let config_dir =
+        home_config_dir().ok_or_else(|| io::Error::other("cannot determine config directory"))?;
     Ok(config_dir.join("herdr").join(IROH_KEY_DIR))
 }
 

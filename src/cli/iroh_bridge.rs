@@ -63,9 +63,8 @@ fn run_serve(args: &[String]) -> std::io::Result<i32> {
         i += 1;
     }
 
-    let server_socket = server_socket.unwrap_or_else(|| {
-        crate::server::socket_paths::client_socket_path()
-    });
+    let server_socket =
+        server_socket.unwrap_or_else(|| crate::server::socket_paths::client_socket_path());
 
     let secret_key = iroh_bridge::load_or_create_identity_key().ok();
 
@@ -75,9 +74,8 @@ fn run_serve(args: &[String]) -> std::io::Result<i32> {
         relay_urls,
     };
 
-    let rt = tokio::runtime::Runtime::new().map_err(|e| {
-        std::io::Error::other(format!("failed to create tokio runtime: {e}"))
-    })?;
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| std::io::Error::other(format!("failed to create tokio runtime: {e}")))?;
 
     rt.block_on(iroh_bridge::run_serve(config))?;
     Ok(0)
@@ -149,9 +147,8 @@ fn run_connect(args: &[String]) -> std::io::Result<i32> {
         relay_urls,
     };
 
-    let rt = tokio::runtime::Runtime::new().map_err(|e| {
-        std::io::Error::other(format!("failed to create tokio runtime: {e}"))
-    })?;
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| std::io::Error::other(format!("failed to create tokio runtime: {e}")))?;
 
     rt.block_on(iroh_bridge::run_connect(config))?;
     Ok(0)

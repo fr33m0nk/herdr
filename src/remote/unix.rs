@@ -211,12 +211,9 @@ pub(crate) fn run_remote(remote: RemoteLaunch) -> io::Result<()> {
             }
             run_remote_ssh(remote, local_socket, session_name, reattach_command)
         }
-        RemoteTransportKind::Iroh => run_remote_iroh(
-            remote,
-            local_socket,
-            session_name,
-            reattach_command,
-        ),
+        RemoteTransportKind::Iroh => {
+            run_remote_iroh(remote, local_socket, session_name, reattach_command)
+        }
     }
 }
 
@@ -288,7 +285,12 @@ fn run_remote_iroh(
     // auto-detect iroh without the --iroh flag.
     save_remote_endpoint_mapping(&remote.target, &remote_id)?;
 
-    launch_iroh_bridge_and_client(remote_id, local_socket, reattach_command, remote.keybindings)
+    launch_iroh_bridge_and_client(
+        remote_id,
+        local_socket,
+        reattach_command,
+        remote.keybindings,
+    )
 }
 
 /// Run iroh remote with a pre-known endpoint ID (from stored mapping).
@@ -300,7 +302,12 @@ fn run_remote_iroh_stored(
     reattach_command: String,
     stored_id: String,
 ) -> io::Result<()> {
-    launch_iroh_bridge_and_client(stored_id, local_socket, reattach_command, remote.keybindings)
+    launch_iroh_bridge_and_client(
+        stored_id,
+        local_socket,
+        reattach_command,
+        remote.keybindings,
+    )
 }
 
 /// Launch the iroh bridge and client as a single unit.
@@ -347,9 +354,10 @@ impl RemoteTransport for IrohTransport {
             .build()
             .map_err(|e| io::Error::other(format!("failed to create tokio runtime: {e}")))?;
 
-        let remote_id: iroh::EndpointId = self.remote_endpoint_id.parse().map_err(|e| {
-            io::Error::other(format!("invalid endpoint id: {e}"))
-        })?;
+        let remote_id: iroh::EndpointId = self
+            .remote_endpoint_id
+            .parse()
+            .map_err(|e| io::Error::other(format!("invalid endpoint id: {e}")))?;
 
         let secret_key = crate::iroh_bridge::load_or_create_identity_key().ok();
 
@@ -361,8 +369,12 @@ impl RemoteTransport for IrohTransport {
         };
 
         rt.block_on(async move {
-            let (endpoint, _) = crate::iroh_bridge::bind_endpoint(config.secret_key, config.relay_urls.clone()).await?;
-            let result = crate::iroh_bridge::run_connect_once_with_stream(&endpoint, &config, local_stream).await;
+            let (endpoint, _) =
+                crate::iroh_bridge::bind_endpoint(config.secret_key, config.relay_urls.clone())
+                    .await?;
+            let result =
+                crate::iroh_bridge::run_connect_once_with_stream(&endpoint, &config, local_stream)
+                    .await;
             endpoint.close().await;
             result
         })
@@ -376,21 +388,19 @@ impl RemoteTransport for IrohTransport {
 /// Ensure the iroh bridge server is running on the remote host via SSH.
 ///
 /// Returns the remote endpoint's [`EndpointId`] string.
-fn ensure_iroh_bridge_serve(
-    ssh: &RemoteSsh,
-    remote_herdr: &RemoteHerdr,
-) -> io::Result<String> {
+fn ensure_iroh_bridge_serve(ssh: &RemoteSsh, remote_herdr: &RemoteHerdr) -> io::Result<String> {
     // Get (or create) the remote identity and return its endpoint id.
     let id_cmd = format!("{} iroh-bridge id", remote_herdr.shell_path);
     let output = ssh.sh_output(&id_cmd)?;
     if !output.status.success() {
-        return Err(command_failed("failed to get remote iroh endpoint id", &output));
+        return Err(command_failed(
+            "failed to get remote iroh endpoint id",
+            &output,
+        ));
     }
     let remote_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if remote_id.is_empty() {
-        return Err(io::Error::other(
-            "remote iroh endpoint id is empty",
-        ));
+        return Err(io::Error::other("remote iroh endpoint id is empty"));
     }
 
     // Check if the iroh bridge is already running by looking for a
@@ -2394,8 +2404,7 @@ mod tests {
         let transport = StubTransport {
             called: Arc::new(AtomicBool::new(false)),
         };
-        let handle =
-            BridgeHandle::start(transport, socket.clone()).expect("start BridgeHandle");
+        let handle = BridgeHandle::start(transport, socket.clone()).expect("start BridgeHandle");
 
         let mode = std::fs::metadata(&socket).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, BRIDGE_SOCKET_PERMISSION_MODE);
@@ -2415,8 +2424,8 @@ mod tests {
         };
 
         {
-            let _handle = BridgeHandle::start(transport, socket.clone())
-                .expect("start BridgeHandle");
+            let _handle =
+                BridgeHandle::start(transport, socket.clone()).expect("start BridgeHandle");
             assert!(socket.exists(), "socket should exist while handle is alive");
         }
         // After drop, the socket should be removed.
@@ -2433,17 +2442,19 @@ mod tests {
         let transport = StubTransport {
             called: Arc::clone(&called),
         };
-        let _handle = BridgeHandle::start(transport, socket.clone())
-            .expect("start BridgeHandle");
+        let _handle = BridgeHandle::start(transport, socket.clone()).expect("start BridgeHandle");
 
         // Connect to the socket to trigger transport.bridge().
-        let _stream = std::os::unix::net::UnixStream::connect(&socket)
-            .expect("connect to bridge socket");
+        let _stream =
+            std::os::unix::net::UnixStream::connect(&socket).expect("connect to bridge socket");
 
         // Give the accept loop a moment to pick up the connection.
         std::thread::sleep(Duration::from_millis(100));
 
-        assert!(called.load(Ordering::SeqCst), "transport.bridge() should have been called");
+        assert!(
+            called.load(Ordering::SeqCst),
+            "transport.bridge() should have been called"
+        );
     }
 
     #[test]
@@ -2456,17 +2467,14 @@ mod tests {
         let transport = StubTransport {
             called: Arc::clone(&called),
         };
-        let _handle = BridgeHandle::start(transport, socket.clone())
-            .expect("start BridgeHandle");
+        let _handle = BridgeHandle::start(transport, socket.clone()).expect("start BridgeHandle");
 
         // First connection.
-        let _s1 =
-            std::os::unix::net::UnixStream::connect(&socket).expect("first connect");
+        let _s1 = std::os::unix::net::UnixStream::connect(&socket).expect("first connect");
         std::thread::sleep(Duration::from_millis(50));
 
         // Second connection.
-        let _s2 =
-            std::os::unix::net::UnixStream::connect(&socket).expect("second connect");
+        let _s2 = std::os::unix::net::UnixStream::connect(&socket).expect("second connect");
         std::thread::sleep(Duration::from_millis(50));
 
         // Both should have triggered bridge() — the loop accepts multiple.
@@ -2489,12 +2497,11 @@ mod tests {
             }
         }
 
-        let _handle = BridgeHandle::start(FailingTransport, socket.clone())
-            .expect("start BridgeHandle");
+        let _handle =
+            BridgeHandle::start(FailingTransport, socket.clone()).expect("start BridgeHandle");
 
         // Connect — transport fails, but BridgeHandle should not panic.
-        let _stream =
-            std::os::unix::net::UnixStream::connect(&socket).expect("connect");
+        let _stream = std::os::unix::net::UnixStream::connect(&socket).expect("connect");
         std::thread::sleep(Duration::from_millis(50));
 
         // Socket should still be cleaned up on drop.
@@ -3546,7 +3553,12 @@ mod tests {
 
     #[test]
     fn extract_remote_args_iroh_with_space_form() {
-        let args = vec!["herdr".into(), "--remote".into(), "dev".into(), "--iroh".into()];
+        let args = vec![
+            "herdr".into(),
+            "--remote".into(),
+            "dev".into(),
+            "--iroh".into(),
+        ];
         let (_cleaned, remote) = extract_remote_args(&args).unwrap();
         let remote = remote.unwrap();
         assert_eq!(remote.transport, RemoteTransportKind::Iroh);
