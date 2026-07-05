@@ -64,7 +64,7 @@ fn run_serve(args: &[String]) -> std::io::Result<i32> {
     }
 
     let server_socket =
-        server_socket.unwrap_or_else(|| crate::server::socket_paths::client_socket_path());
+        server_socket.unwrap_or_else(crate::server::socket_paths::client_socket_path);
 
     let secret_key = iroh_bridge::load_or_create_identity_key().ok();
 

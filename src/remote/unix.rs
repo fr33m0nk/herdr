@@ -1958,6 +1958,7 @@ fn command_failed(context: &str, output: &Output) -> io::Error {
 struct SshStdioBridge(BridgeHandle);
 
 impl SshStdioBridge {
+    #[allow(dead_code)]
     fn start(
         target: String,
         remote_herdr: RemoteHerdr,

@@ -83,7 +83,7 @@ pub async fn run_serve(config: ServeConfig) -> io::Result<()> {
     };
 
     let _router = Router::builder(endpoint.clone())
-        .accept(ALPN.to_vec(), bridge)
+        .accept(ALPN, bridge)
         .spawn();
 
     info!("iroh bridge listening on {endpoint_id}");
@@ -593,7 +593,7 @@ mod tests {
 
     // --- helpers to override key directory ---
 
-    fn load_or_create_identity_key_custom(key_dir: &PathBuf) -> io::Result<[u8; 32]> {
+    fn load_or_create_identity_key_custom(key_dir: &Path) -> io::Result<[u8; 32]> {
         std::fs::create_dir_all(key_dir)?;
         let key_path = key_dir.join(KEY_FILE_NAME);
         let pub_path = key_dir.join(PUB_KEY_FILE_NAME);
@@ -613,7 +613,7 @@ mod tests {
         Ok(secret_bytes)
     }
 
-    fn load_identity_public_key_custom(key_dir: &PathBuf) -> io::Result<Option<EndpointId>> {
+    fn load_identity_public_key_custom(key_dir: &Path) -> io::Result<Option<EndpointId>> {
         let pub_path = key_dir.join(PUB_KEY_FILE_NAME);
         if !pub_path.exists() {
             return Ok(None);

@@ -258,7 +258,7 @@ fn prompt_existing_passphrase(key_path: &Path) -> Result<SecretString, KeyfileEr
     }
 
     let pass = rpassword::prompt_password(format!("Passphrase for {}: ", key_path.display()))
-        .map_err(|e| KeyfileError::Io(e))?;
+        .map_err(KeyfileError::Io)?;
 
     Ok(SecretString::from(pass))
 }
@@ -275,7 +275,7 @@ fn prompt_new_passphrase_interactive(key_path: &Path) -> Result<SecretString, Ke
     eprintln!("This passphrase encrypts the key at rest. Choose a strong one.");
     eprintln!();
 
-    let pass = rpassword::prompt_password("New passphrase: ").map_err(|e| KeyfileError::Io(e))?;
+    let pass = rpassword::prompt_password("New passphrase: ").map_err(KeyfileError::Io)?;
 
     if pass.len() < MIN_PASSPHRASE_LEN {
         return Err(KeyfileError::Other(format!(
@@ -283,8 +283,7 @@ fn prompt_new_passphrase_interactive(key_path: &Path) -> Result<SecretString, Ke
         )));
     }
 
-    let confirm =
-        rpassword::prompt_password("Confirm passphrase: ").map_err(|e| KeyfileError::Io(e))?;
+    let confirm = rpassword::prompt_password("Confirm passphrase: ").map_err(KeyfileError::Io)?;
 
     if pass != confirm {
         return Err(KeyfileError::Other("passphrases do not match".into()));
