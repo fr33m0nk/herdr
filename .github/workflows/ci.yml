@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -115,6 +116,18 @@ jobs:
         if: matrix.kind == 'unix'
         run: just ci '${{ matrix.nextest_filter }}'
 
+      - name: Build release binary (PR only)
+        if: matrix.kind == 'unix' && github.event_name == 'pull_request'
+        run: cargo build --release --locked
+
+      - name: Upload binary artifact (PR only)
+        if: matrix.kind == 'unix' && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: herdr-${{ runner.os }}-${{ runner.arch }}
+          path: target/release/herdr
+          retention-days: 3
+
       - name: Run Windows checks
         if: matrix.kind == 'windows'
         shell: pwsh
@@ -132,6 +145,14 @@ jobs:
           Invoke-Checked cargo @("test", "--locked", "--target", "x86_64-pc-windows-msvc", "--bin", "herdr", "windows_")
           Invoke-Checked cargo @("test", "--locked", "--target", "x86_64-pc-windows-msvc", "--bin", "herdr", "server::client_transport::tests")
           Invoke-Checked cargo @("build", "--locked", "--target", "x86_64-pc-windows-msvc")
+
+      - name: Upload Windows binary artifact (PR only)
+        if: matrix.kind == 'windows' && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: herdr-windows-x86_64
+          path: target/x86_64-pc-windows-msvc/debug/herdr.exe
+          retention-days: 3
 
       - name: Smoke ConPTY pane
         if: matrix.kind == 'windows'
