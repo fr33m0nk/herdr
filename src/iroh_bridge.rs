@@ -639,4 +639,134 @@ mod tests {
             .map_err(|e| io::Error::other(format!("invalid public key bytes: {e}")))?;
         Ok(Some(id))
     }
+
+    #[test]
+    fn bridge_e2e_with_mock_server() {
+        // Test the iroh bridge end-to-end with a mock server socket.
+        // Uses a Unix socket pair where one end responds with a Welcome frame.
+        use std::io::{Read, Write};
+        use std::os::unix::net::UnixStream;
+        use std::time::Duration;
+
+        let (mut mock_server, mock_client) = UnixStream::pair().expect("pair");
+        let protocol_version: u32 = 16;
+
+        // Build a minimal Welcome frame.
+        let mut payload = vec![0u8]; // variant 0 = Welcome
+        payload.push(protocol_version as u8); // version (varint, < 251)
+        payload.push(0); // error: None
+        let frame_len = payload.len() as u32;
+        let mut frame = frame_len.to_le_bytes().to_vec();
+        frame.extend_from_slice(&payload);
+
+        let server_frame = frame;
+        let server_thread = std::thread::spawn(move || {
+            let mut buf = [0u8; 256];
+            let n = mock_server.read(&mut buf).expect("read hello");
+            assert!(n > 0, "should receive hello");
+            mock_server.write_all(&server_frame).expect("write welcome");
+            mock_server.flush().expect("flush");
+        });
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .worker_threads(2)
+            .build()
+            .expect("tokio runtime");
+
+        rt.block_on(async {
+            use iroh::endpoint::Connection;
+            use iroh::protocol::{ProtocolHandler, Router};
+
+            let (serve_endpoint, serve_id) = bind_endpoint(None, vec![]).await.expect("bind serve");
+            let (connect_endpoint, _) = bind_endpoint(None, vec![]).await.expect("bind connect");
+
+            mock_client.set_nonblocking(true).expect("set nonblocking");
+            let mock_tokio = tokio::net::UnixStream::from_std(mock_client).expect("from_std");
+
+            #[derive(Debug)]
+            struct Handler {
+                stream: std::sync::Mutex<Option<tokio::net::UnixStream>>,
+            }
+            impl ProtocolHandler for Handler {
+                async fn accept(
+                    &self,
+                    conn: Connection,
+                ) -> Result<(), iroh::protocol::AcceptError> {
+                    let (send, recv) = match conn.accept_bi().await {
+                        Ok(s) => s,
+                        Err(_) => return Ok(()),
+                    };
+                    // Take the stream out of the Mutex and split into owned halves.
+                    let (mut s_read, mut s_write) = self
+                        .stream
+                        .lock()
+                        .unwrap()
+                        .take()
+                        .expect("stream already consumed")
+                        .into_split();
+                    let (mut i_read, mut i_write) = (tokio::io::BufReader::new(recv), send);
+                    let up = async {
+                        let _ = tokio::io::copy(&mut s_read, &mut i_write).await;
+                    };
+                    let down = async {
+                        let _ = tokio::io::copy(&mut i_read, &mut s_write).await;
+                    };
+                    tokio::join!(up, down);
+                    Ok(())
+                }
+            }
+
+            let _router = Router::builder(serve_endpoint.clone())
+                .accept(
+                    ALPN,
+                    Handler {
+                        stream: std::sync::Mutex::new(Some(mock_tokio)),
+                    },
+                )
+                .spawn();
+
+            let (test_bridge, mut test_client) = tokio::net::UnixStream::pair().expect("pair");
+
+            let connect_ep = connect_endpoint.clone();
+            let bridge_task = tokio::spawn(async move {
+                let conn = connect_ep.connect(serve_id, ALPN).await.expect("connect");
+                let (send, recv) = conn.open_bi().await.expect("open_bi");
+                let (mut l_read, mut l_write) = test_bridge.into_split();
+                let (mut i_read, mut i_write) = (tokio::io::BufReader::new(recv), send);
+                let up = async {
+                    let _ = tokio::io::copy(&mut l_read, &mut i_write).await;
+                };
+                let down = async {
+                    let _ = tokio::io::copy(&mut i_read, &mut l_write).await;
+                };
+                tokio::join!(up, down);
+            });
+
+            let mut std_client = test_client.into_std().expect("into_std");
+            std_client.set_nonblocking(false).expect("set blocking");
+            std_client
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .expect("timeout");
+
+            std_client
+                .write_all(b"hello from client")
+                .expect("write hello");
+            std_client.flush().expect("flush");
+
+            let mut buf = vec![0u8; 256];
+            let n = std_client.read(&mut buf).expect("read welcome");
+            assert!(n > 0, "should receive data through bridge");
+            assert!(n >= 4, "should have frame header");
+            let flen = u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]) as usize;
+            assert!(n >= 4 + flen, "should have full frame");
+
+            serve_endpoint.close().await;
+            connect_endpoint.close().await;
+            bridge_task.abort();
+            let _ = bridge_task.await;
+        });
+
+        server_thread.join().expect("server thread");
+    }
 }
