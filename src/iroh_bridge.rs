@@ -53,7 +53,7 @@ use tracing::{debug, info, warn};
 ///
 /// Both sides must agree on this value for the QUIC handshake to succeed.
 /// Changing this is a wire-format change.
-const ALPN: &[u8] = b"herdr/iroh-bridge/0";
+pub const ALPN: &[u8] = b"herdr/iroh-bridge/0";
 
 /// The directory under `~/.config/herdr/` where iroh identity keys live.
 const IROH_KEY_DIR: &str = "iroh";
