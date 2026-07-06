@@ -125,6 +125,13 @@ jobs:
           HERDR_IROH_KEY_PASSPHRASE: ci-e2e-test-pw
         run: cargo test --test iroh_bridge_e2e -- --nocapture
 
+      - name: Run iroh bridge binary e2e test
+        if: matrix.kind == 'unix'
+        env:
+          HERDR_IROH_KEY_NEW_PASSPHRASE: ci-binary-e2e-pw
+          HERDR_IROH_KEY_PASSPHRASE: ci-binary-e2e-pw
+        run: HERDR_BIN=target/debug/herdr scripts/iroh_bridge_binary_e2e.sh
+
       - name: Install Linux aarch64 cross-compile tools (PR only)
         if: runner.os == 'Linux' && github.event_name == 'pull_request'
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
