@@ -118,6 +118,14 @@ jobs:
         if: matrix.kind == 'unix'
         run: just ci '${{ matrix.nextest_filter }}'
 
+      - name: Run iroh bridge binary e2e test
+        if: matrix.kind == 'unix'
+        continue-on-error: true
+        env:
+          HERDR_IROH_KEY_NEW_PASSPHRASE: ci-binary-e2e-pw
+          HERDR_IROH_KEY_PASSPHRASE: ci-binary-e2e-pw
+        run: HERDR_BIN=target/debug/herdr scripts/iroh_bridge_binary_e2e.sh
+
       - name: Install Linux aarch64 cross-compile tools (on merge to master)
         if: runner.os == 'Linux' && github.event_name == 'push' && github.ref_name == 'master'
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
