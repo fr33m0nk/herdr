@@ -169,8 +169,10 @@ impl IrohBridgeServe {
         cmd.env("HERDR_IROH_KEY_PASSPHRASE", "e2e-test-pw-1234");
         cmd.stdin(Stdio::null());
         cmd.stdout(Stdio::piped());
-        // Inherit stderr so errors are visible in test output.
-        cmd.stderr(Stdio::inherit());
+        // Capture stderr to a temp file for debugging.
+        let stderr_path = config_home.join("herdr").join("iroh-serve-stderr.log");
+        let stderr_file = fs::File::create(&stderr_path).expect("create serve stderr log");
+        cmd.stderr(stderr_file);
 
         let mut child = cmd.spawn().expect("spawn iroh-bridge serve");
 
@@ -227,19 +229,30 @@ impl IrohBridgeConnect {
         cmd.env("HERDR_IROH_KEY_NEW_PASSPHRASE", "e2e-test-pw-1234");
         cmd.env("HERDR_IROH_KEY_PASSPHRASE", "e2e-test-pw-1234");
         cmd.stdin(Stdio::null());
-        // CRITICAL: inherit stdout so the reconnect loop's println! doesn't
-        // panic with BrokenPipe. We don't need to capture stdout since we
-        // already know the socket path.
+        // Inherit stdout so reconnect prints are visible in test output.
         cmd.stdout(Stdio::inherit());
-        cmd.stderr(Stdio::inherit());
+        let stderr_path = config_home.join("herdr").join("iroh-connect-stderr.log");
+        let stderr_file = fs::File::create(&stderr_path).expect("create connect stderr log");
+        cmd.stderr(stderr_file);
 
         let mut child = cmd.spawn().expect("spawn iroh-bridge connect");
 
         // Wait for the bridge to bind (check file existence, don't connect).
         wait_for_socket_file(local_socket, Duration::from_secs(15));
 
+        // Stabilize: the bridge may reconnect if the first QUIC attempt fails.
+        // Wait for the socket file to remain present for a full second without
+        // disappearing (which would indicate a reconnect cycle).
+        for _ in 0..10 {
+            thread::sleep(Duration::from_millis(200));
+            if !local_socket.exists() {
+                // Socket was deleted — bridge reconnecting. Wait for it to
+                // reappear and restart the stabilization check.
+                wait_for_socket_file(local_socket, Duration::from_secs(15));
+            }
+        }
+
         // Quick check that the child hasn't already exited.
-        thread::sleep(Duration::from_millis(100));
         if let Ok(Some(status)) = child.try_wait() {
             panic!("iroh-bridge connect exited early with {status}");
         }
@@ -418,33 +431,63 @@ fn iroh_bridge_e2e_handshake() {
         IrohBridgeConnect::spawn(&endpoint_id, &local_socket, &config_home, &runtime_dir);
 
     // 4. Client handshake through the bridge.
-    let mut stream = UnixStream::connect(&local_socket).expect("connect to bridge socket");
-
-    // Allow the QUIC tunnel to fully establish after client connects.
-    thread::sleep(Duration::from_secs(2));
-
+    // The bridge connect may retry its QUIC connection on startup, recreating
+    // the Unix socket.  Retry the connection + handshake if the bridge resets.
     let hello = build_hello_frame(support::CURRENT_PROTOCOL, 80, 24);
-    stream.write_all(&hello).expect("write hello");
-    stream.flush().expect("flush hello");
+    let mut last_err = String::new();
 
-    match read_welcome(&mut stream) {
-        Ok(w) => {
-            eprintln!("Welcome: version={}", w.version);
-            assert_eq!(w.version, support::CURRENT_PROTOCOL);
+    for attempt in 1..=5 {
+        let mut stream = match UnixStream::connect(&local_socket) {
+            Ok(s) => s,
+            Err(e) => {
+                last_err = format!("connect attempt {attempt}: {e}");
+                thread::sleep(Duration::from_secs(2));
+                continue;
+            }
+        };
+
+        // Give the QUIC tunnel time to establish.
+        thread::sleep(Duration::from_secs(3));
+
+        if stream.write_all(&hello).is_err() {
+            last_err = format!("write attempt {attempt}: bridge reset");
+            thread::sleep(Duration::from_secs(2));
+            continue;
         }
-        Err(e) => {
-            eprintln!("Welcome decode failed: {e} — trying raw read");
-            stream.set_read_timeout(Some(Duration::from_secs(3))).ok();
-            let mut buf = [0u8; 4096];
-            match stream.read(&mut buf) {
-                Ok(n) if n > 0 => {
-                    eprintln!("received {n} raw bytes through bridge");
-                    // Tunnel is working even if we can't decode — partial success.
-                }
-                Ok(_) => panic!("bridge connected but no data: {e}"),
-                Err(re) => panic!("bridge read error ({e}): {re}"),
+        if stream.flush().is_err() {
+            last_err = format!("flush attempt {attempt}: bridge reset");
+            thread::sleep(Duration::from_secs(2));
+            continue;
+        }
+
+        match read_welcome(&mut stream) {
+            Ok(w) => {
+                eprintln!("Welcome: version={}", w.version);
+                assert_eq!(w.version, support::CURRENT_PROTOCOL);
+                last_err.clear();
+                break;
+            }
+            Err(e) => {
+                last_err = format!("read attempt {attempt}: {e}");
+                thread::sleep(Duration::from_secs(2));
+                continue;
             }
         }
+    }
+
+    if !last_err.is_empty() {
+        // Dump bridge process stderr logs for debugging.
+        for (name, log) in &[
+            ("serve", config_home.join("herdr").join("iroh-serve-stderr.log")),
+            ("connect", config_home.join("herdr").join("iroh-connect-stderr.log")),
+        ] {
+            if let Ok(contents) = fs::read_to_string(log) {
+                if !contents.trim().is_empty() {
+                    eprintln!("=== iroh {name} stderr ===\n{contents}");
+                }
+            }
+        }
+        panic!("bridge handshake failed after retries: {last_err}");
     }
 
     drop(_connect);
