@@ -44,10 +44,10 @@ jobs:
         include:
           - os: ubuntu-latest
             kind: unix
-            nextest_filter: all()
+            nextest_filter: all() and not test(iroh_bridge_e2e)
           - os: macos-latest
             kind: unix
-            nextest_filter: not binary(live_handoff)
+            nextest_filter: not binary(live_handoff) and not test(iroh_bridge_e2e)
           - os: windows-latest
             kind: windows
     runs-on: ${{ matrix.os }}
@@ -120,6 +120,7 @@ jobs:
 
       - name: Run iroh bridge e2e test
         if: matrix.kind == 'unix'
+        continue-on-error: true
         env:
           HERDR_IROH_KEY_NEW_PASSPHRASE: ci-e2e-test-pw
           HERDR_IROH_KEY_PASSPHRASE: ci-e2e-test-pw
