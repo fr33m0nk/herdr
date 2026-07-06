@@ -63,9 +63,8 @@ impl Drop for SpawnedServer {
             let deadline = Instant::now() + Duration::from_secs(2);
             while Instant::now() < deadline {
                 let mut status = 0;
-                let result = unsafe {
-                    libc::waitpid(pid as libc::pid_t, &mut status, libc::WNOHANG)
-                };
+                let result =
+                    unsafe { libc::waitpid(pid as libc::pid_t, &mut status, libc::WNOHANG) };
                 if result == pid as libc::pid_t || result == -1 {
                     break;
                 }
@@ -290,11 +289,11 @@ fn build_hello_frame(version: u32, cols: u16, rows: u16) -> Vec<u8> {
     payload.extend_from_slice(&encode_varint_u32(version));
     payload.extend_from_slice(&encode_varint_u16(cols));
     payload.extend_from_slice(&encode_varint_u16(rows));
-    payload.extend_from_slice(&encode_varint_u32(8));  // cell_width_px
+    payload.extend_from_slice(&encode_varint_u32(8)); // cell_width_px
     payload.extend_from_slice(&encode_varint_u32(16)); // cell_height_px
-    payload.extend_from_slice(&encode_varint_u32(0));  // RenderEncoding::SemanticFrame
-    payload.extend_from_slice(&encode_varint_u32(0));  // ClientKeybindings::Server
-    payload.extend_from_slice(&encode_varint_u32(0));  // ClientLaunchMode::App
+    payload.extend_from_slice(&encode_varint_u32(0)); // RenderEncoding::SemanticFrame
+    payload.extend_from_slice(&encode_varint_u32(0)); // ClientKeybindings::Server
+    payload.extend_from_slice(&encode_varint_u32(0)); // ClientLaunchMode::App
 
     let len = payload.len() as u32;
     let mut frame = len.to_le_bytes().to_vec();
@@ -411,17 +410,12 @@ fn iroh_bridge_e2e_handshake() {
     wait_for_socket(&client_socket, Duration::from_secs(10));
 
     // 2. Start iroh bridge serve.
-    let (_serve, endpoint_id) =
-        IrohBridgeServe::spawn(&client_socket, &config_home, &runtime_dir);
+    let (_serve, endpoint_id) = IrohBridgeServe::spawn(&client_socket, &config_home, &runtime_dir);
 
     // 3. Start iroh bridge connect.
     let local_socket = base.join("bridge.sock");
-    let _connect = IrohBridgeConnect::spawn(
-        &endpoint_id,
-        &local_socket,
-        &config_home,
-        &runtime_dir,
-    );
+    let _connect =
+        IrohBridgeConnect::spawn(&endpoint_id, &local_socket, &config_home, &runtime_dir);
 
     // 4. Client handshake through the bridge.
     let mut stream = UnixStream::connect(&local_socket).expect("connect to bridge socket");
@@ -440,9 +434,7 @@ fn iroh_bridge_e2e_handshake() {
         }
         Err(e) => {
             eprintln!("Welcome decode failed: {e} — trying raw read");
-            stream
-                .set_read_timeout(Some(Duration::from_secs(3)))
-                .ok();
+            stream.set_read_timeout(Some(Duration::from_secs(3))).ok();
             let mut buf = [0u8; 4096];
             match stream.read(&mut buf) {
                 Ok(n) if n > 0 => {
