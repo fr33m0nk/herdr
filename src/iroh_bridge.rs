@@ -641,6 +641,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires iroh peer discovery which may need DNS"]
     fn bridge_e2e_with_mock_server() {
         // Test the iroh bridge end-to-end with a mock server socket.
         // Uses a Unix socket pair where one end responds with a Welcome frame.
@@ -675,11 +676,28 @@ mod tests {
             .expect("tokio runtime");
 
         rt.block_on(async {
+            use iroh::endpoint::presets;
             use iroh::endpoint::Connection;
             use iroh::protocol::{ProtocolHandler, Router};
+            use iroh::{Endpoint, RelayMode, SecretKey};
 
-            let (serve_endpoint, serve_id) = bind_endpoint(None, vec![]).await.expect("bind serve");
-            let (connect_endpoint, _) = bind_endpoint(None, vec![]).await.expect("bind connect");
+            // Build endpoints with RelayMode::Disabled to avoid DNS
+            // discovery of DERP relays on restricted CI runners.
+            let serve_key = SecretKey::generate();
+            let connect_key = SecretKey::generate();
+            let serve_endpoint = Endpoint::builder(presets::N0)
+                .secret_key(serve_key)
+                .relay_mode(RelayMode::Disabled)
+                .bind()
+                .await
+                .expect("bind serve");
+            let serve_id = serve_endpoint.id();
+            let connect_endpoint = Endpoint::builder(presets::N0)
+                .secret_key(connect_key)
+                .relay_mode(RelayMode::Disabled)
+                .bind()
+                .await
+                .expect("bind connect");
 
             mock_client.set_nonblocking(true).expect("set nonblocking");
             let mock_tokio = tokio::net::UnixStream::from_std(mock_client).expect("from_std");
