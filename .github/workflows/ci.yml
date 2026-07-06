@@ -125,30 +125,30 @@ jobs:
           HERDR_IROH_KEY_PASSPHRASE: ci-e2e-test-pw
         run: cargo test --test iroh_bridge_e2e -- --nocapture
 
-      - name: Install Linux aarch64 cross-compile tools (PR only)
-        if: runner.os == 'Linux' && github.event_name == 'pull_request'
+      - name: Install Linux aarch64 cross-compile tools (on merge to master)
+        if: runner.os == 'Linux' && github.event_name == 'push' && github.ref_name == 'master'
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
 
-      - name: Build release binary aarch64 (PR only)
-        if: runner.os == 'Linux' && github.event_name == 'pull_request'
+      - name: Build release binary aarch64 (on merge to master)
+        if: runner.os == 'Linux' && github.event_name == 'push' && github.ref_name == 'master'
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
         run: cargo build --release --locked --target aarch64-unknown-linux-gnu
 
-      - name: Upload aarch64 artifact (PR only)
-        if: runner.os == 'Linux' && github.event_name == 'pull_request'
+      - name: Upload aarch64 artifact (on merge to master)
+        if: runner.os == 'Linux' && github.event_name == 'push' && github.ref_name == 'master'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: herdr-linux-aarch64
           path: target/aarch64-unknown-linux-gnu/release/herdr
           retention-days: 3
 
-      - name: Build release binary macOS ARM64 (PR only)
-        if: runner.os == 'macOS' && github.event_name == 'pull_request'
+      - name: Build release binary macOS ARM64 (on merge to master)
+        if: runner.os == 'macOS' && github.event_name == 'push' && github.ref_name == 'master'
         run: cargo build --release --locked
 
-      - name: Upload macOS ARM64 artifact (PR only)
-        if: runner.os == 'macOS' && github.event_name == 'pull_request'
+      - name: Upload macOS ARM64 artifact (on merge to master)
+        if: runner.os == 'macOS' && github.event_name == 'push' && github.ref_name == 'master'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: herdr-macos-arm64
