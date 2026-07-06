@@ -118,6 +118,13 @@ jobs:
         if: matrix.kind == 'unix'
         run: just ci '${{ matrix.nextest_filter }}'
 
+      - name: Run iroh bridge e2e test
+        if: matrix.kind == 'unix'
+        env:
+          HERDR_IROH_KEY_NEW_PASSPHRASE: ci-e2e-test-pw
+          HERDR_IROH_KEY_PASSPHRASE: ci-e2e-test-pw
+        run: cargo test --test iroh_bridge_e2e -- --nocapture
+
       - name: Install Linux aarch64 cross-compile tools (PR only)
         if: runner.os == 'Linux' && github.event_name == 'pull_request'
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
