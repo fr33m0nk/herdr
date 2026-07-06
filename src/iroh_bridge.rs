@@ -641,7 +641,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires iroh peer discovery which may need DNS"]
     fn bridge_e2e_with_mock_server() {
         // Test the iroh bridge end-to-end with a mock server socket.
         // Uses a Unix socket pair where one end responds with a Welcome frame.
@@ -679,10 +678,10 @@ mod tests {
             use iroh::endpoint::presets;
             use iroh::endpoint::Connection;
             use iroh::protocol::{ProtocolHandler, Router};
-            use iroh::{Endpoint, RelayMode, SecretKey};
+            use iroh::{Endpoint, EndpointAddr, RelayMode, SecretKey, TransportAddr};
 
-            // Build endpoints with RelayMode::Disabled to avoid DNS
-            // discovery of DERP relays on restricted CI runners.
+            // Build endpoints with RelayMode::Disabled — no DERP relay server
+            // needed since both peers are in the same test process.
             let serve_key = SecretKey::generate();
             let connect_key = SecretKey::generate();
             let serve_endpoint = Endpoint::builder(presets::N0)
@@ -698,6 +697,20 @@ mod tests {
                 .bind()
                 .await
                 .expect("bind connect");
+
+            // Build an EndpointAddr from the serve endpoint's local IP addresses.
+            // This bypasses DNS/relay discovery and uses direct IP connectivity.
+            let serve_addrs = serve_endpoint
+                .addr()
+                .ip_addrs()
+                .copied()
+                .map(TransportAddr::Ip)
+                .collect::<Vec<_>>();
+            assert!(
+                !serve_addrs.is_empty(),
+                "serve endpoint should have at least one local address"
+            );
+            let serve_addr = EndpointAddr::from_parts(serve_id, serve_addrs);
 
             mock_client.set_nonblocking(true).expect("set nonblocking");
             let mock_tokio = tokio::net::UnixStream::from_std(mock_client).expect("from_std");
@@ -748,7 +761,7 @@ mod tests {
 
             let connect_ep = connect_endpoint.clone();
             let bridge_task = tokio::spawn(async move {
-                let conn = connect_ep.connect(serve_id, ALPN).await.expect("connect");
+                let conn = connect_ep.connect(serve_addr, ALPN).await.expect("connect");
                 let (send, recv) = conn.open_bi().await.expect("open_bi");
                 let (mut l_read, mut l_write) = test_bridge.into_split();
                 let (mut i_read, mut i_write) = (tokio::io::BufReader::new(recv), send);
