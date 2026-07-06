@@ -365,10 +365,6 @@ struct IrohTransport {
 
 impl RemoteTransport for IrohTransport {
     fn bridge(&self, local_stream: UnixStream) -> io::Result<()> {
-        // Convert blocking std UnixStream to async tokio UnixStream.
-        local_stream.set_nonblocking(true)?;
-        let local_stream = tokio::net::UnixStream::from_std(local_stream)?;
-
         let remote_id: iroh::EndpointId = self
             .remote_endpoint_id
             .parse()
@@ -390,6 +386,11 @@ impl RemoteTransport for IrohTransport {
             .map_err(|e| io::Error::other(format!("failed to create tokio runtime: {e}")))?;
 
         rt.block_on(async move {
+            // Convert the blocking std UnixStream to an async tokio UnixStream.
+            // Must happen inside the Tokio runtime so the reactor is available.
+            local_stream.set_nonblocking(true)?;
+            let local_stream =
+                tokio::net::UnixStream::from_std(local_stream)?;
             // Bind endpoint fresh each call — the BridgeHandle accept loop
             // handles client reconnection, and a new endpoint per call
             // ensures clean state after a QUIC tunnel drop.
