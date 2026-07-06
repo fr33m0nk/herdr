@@ -478,8 +478,14 @@ fn iroh_bridge_e2e_handshake() {
     if !last_err.is_empty() {
         // Dump bridge process stderr logs for debugging.
         for (name, log) in &[
-            ("serve", config_home.join("herdr").join("iroh-serve-stderr.log")),
-            ("connect", config_home.join("herdr").join("iroh-connect-stderr.log")),
+            (
+                "serve",
+                config_home.join("herdr").join("iroh-serve-stderr.log"),
+            ),
+            (
+                "connect",
+                config_home.join("herdr").join("iroh-connect-stderr.log"),
+            ),
         ] {
             if let Ok(contents) = fs::read_to_string(log) {
                 if !contents.trim().is_empty() {
