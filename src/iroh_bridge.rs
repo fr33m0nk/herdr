@@ -726,7 +726,7 @@ mod tests {
                 )
                 .spawn();
 
-            let (test_bridge, mut test_client) = tokio::net::UnixStream::pair().expect("pair");
+            let (test_bridge, test_client) = tokio::net::UnixStream::pair().expect("pair");
 
             let connect_ep = connect_endpoint.clone();
             let bridge_task = tokio::spawn(async move {
